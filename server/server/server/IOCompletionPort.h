@@ -132,7 +132,6 @@ private:
 		return nullptr;
 	}
 
-
 	bool BindIOCompletionPort(ClientInfo* clientInfo) {
 		//Completion Port 객체와 소켓, CompletionKey를 연결시키는 역할
 		auto hIOCP = CreateIoCompletionPort((HANDLE)clientInfo->cliSocket, IOCPHandle, (ULONG_PTR)(clientInfo), 0);
@@ -326,15 +325,7 @@ private:
 
 		setsockopt(clientinfo->cliSocket, SOL_SOCKET, SO_LINGER, (char*)&stLinger, sizeof(stLinger));
 		closesocket(clientinfo->cliSocket);
-
-		for (auto it = ClientInfos.begin(); it != ClientInfos.end(); ++it) {
-			if (&(*it) == clientinfo) {
-				ClientInfos.erase(it);
-				ClientCnt--;
-				break;
-			}
-		}
-
+		ClientCnt--;
 		clientinfo->cliSocket = INVALID_SOCKET;
 	}
 

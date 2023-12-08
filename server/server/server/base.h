@@ -18,7 +18,7 @@
 using namespace std;
 
 const int SERVER_PORT = 8080;
-const int MAX_CLIENT = 100;
+const int MAX_CLIENT = 2000;
 
 enum class IOOperation { //작업 동작의 종류
 	RECV, SEND

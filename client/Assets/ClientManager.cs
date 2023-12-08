@@ -109,6 +109,8 @@ public class ClientManager : MonoBehaviour
         my_client = Instantiate(instance.client_prefab).GetComponent<Client>();
         my_client.socket = Manager.my_socket;
         client_list.AddLast(my_client);
+        my_client.transform.tag = CameraMovement.targetTag;
+        my_client.nameText.color = Color.green;
     }
     public void KeySend()
     {

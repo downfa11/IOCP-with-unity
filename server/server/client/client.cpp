@@ -4,7 +4,7 @@
 #include <string>
 #include<thread>
 #include <random>
-#define N 30
+#define N 1000
 #pragma comment(lib, "ws2_32")
 
 #define H_ECHO 8282
@@ -79,7 +79,7 @@ void ClientThread() {
     std::string message;
     char buffer[1024];
     std::thread coordinateThread(SendCoordinates, clientSocket);
-
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     /* Echo func
     while (true) {
 
@@ -131,8 +131,10 @@ int main() {
     std::thread clientThreads[N];
 
     for (int i = 0; i < N; ++i)
+    {
         clientThreads[i] = std::thread(ClientThread);
-
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
     for (int i = 0; i < N; ++i)
         clientThreads[i].join();
 

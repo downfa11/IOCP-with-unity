@@ -13,6 +13,11 @@ int main() {
     ioCompletionPort.StartServer(MAX_CLIENT);
 
     while (1) {
+        /* for (ClientInfo& client : ClientInfos) {
+             if (client.cliSocket != INVALID_SOCKET) {
+                 UpdateClientInfo(client);
+             }
+         }*/
         cout << "$ ";
 
         bool what = false;

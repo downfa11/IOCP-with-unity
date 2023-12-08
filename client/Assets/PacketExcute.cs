@@ -75,6 +75,7 @@ public class PacketExcute : MonoBehaviour
             return;
 
         string dataString = System.Text.Encoding.UTF8.GetString(packet.data);
+        Debug.Log(dataString);
         string[] dataParts = dataString.Split(',');
         if (dataParts.Length >= 3)
         {
