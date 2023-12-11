@@ -11,7 +11,7 @@ public class Manager
 {
     public static TcpClient client;
     public static NetworkStream stream;
-    public static int my_socket;
+    public static int my_socket=0;
     public static int byte_spend;
     public enum ConnectionState
     {

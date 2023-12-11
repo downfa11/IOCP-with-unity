@@ -6,6 +6,9 @@
 #include<thread>
 #include<vector>
 #include<string>
+#include<mutex>
+#include<deque>
+#include<queue>
 
 #define MAX_SOCKBUF 1024
 #define MAX_WORKERTHREAD 4 //쓰레드풀에 넣을 쓰레드의 수
@@ -28,21 +31,52 @@ struct OverlappedEx { //WSAOVERLAPPED 구조체를 확장해서 필요한 정보
 	WSAOVERLAPPED m_Overlapped; // Overlapped IO 구조체
 	SOCKET m_cliSocket;
 	WSABUF m_wsaBuf;
-	char m_Buf[MAX_SOCKBUF]; //data buffer
 	IOOperation m_Operation;
 };
 
 struct ClientInfo {
 	SOCKET cliSocket;
 	OverlappedEx RecvOverlappedEx;
-	OverlappedEx SendOverlappedEx;
 
+	char RecvBuf[MAX_SOCKBUF];
 	int x = 0;
 	int y = 0;
 
 	ClientInfo() {
 		ZeroMemory(&RecvOverlappedEx, sizeof(OverlappedEx));
-		ZeroMemory(&SendOverlappedEx, sizeof(OverlappedEx));
 		cliSocket = INVALID_SOCKET;
+	}
+};
+
+struct PacketData
+{
+	ClientInfo* clientinfo = nullptr;
+	int SessionNumber = 0;
+	int DataSize = 0;
+	char* pPacketData = nullptr;
+
+	void Set(PacketData& vlaue)
+	{
+		clientinfo = vlaue.clientinfo;
+		DataSize = vlaue.DataSize;
+		SessionNumber = vlaue.SessionNumber;
+
+		pPacketData = new char[vlaue.DataSize];
+		CopyMemory(pPacketData, vlaue.pPacketData, vlaue.DataSize);
+	}
+
+	void Set(ClientInfo* clientinfo_, int sessionNumber, int dataSize_, const void* pData)
+	{
+		clientinfo = clientinfo_;
+		SessionNumber = sessionNumber;
+		DataSize = dataSize_;
+
+		pPacketData = new char[dataSize_];
+		CopyMemory(pPacketData, pData, dataSize_);
+	}
+
+	void Release()
+	{
+		delete pPacketData;
 	}
 };

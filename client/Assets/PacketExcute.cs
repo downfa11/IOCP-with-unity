@@ -27,6 +27,8 @@ public class PacketExcute : MonoBehaviour
             switch (packet.number)
             {
                 case PacketNumber.CONNECTSUCCESS:
+                    if (Manager.my_socket != 0)
+                        return;
                     Manager.my_socket = BitConverter.ToInt32(packet.data, 0);
                     ClientManager.instance.MyClientCreate();
                     break;
@@ -49,7 +51,10 @@ public class PacketExcute : MonoBehaviour
                     GetNewbi();
 
                     break;
+                default:
 
+                    Debug.Log("number: " + packet.number+" "+ BitConverter.ToInt32(packet.data, 0));
+                    break;
             }
         }
     }
@@ -75,19 +80,26 @@ public class PacketExcute : MonoBehaviour
             return;
 
         string dataString = System.Text.Encoding.UTF8.GetString(packet.data);
-        Debug.Log(dataString);
-        string[] dataParts = dataString.Split(',');
-        if (dataParts.Length >= 3)
+        try
         {
-            int socket = Convert.ToInt32(dataParts[0]);
-            int x = Convert.ToInt32(dataParts[1]);
-            int y = Convert.ToInt32(dataParts[2]);
-            if(socket!=Manager.my_socket)
-                ClientManager.instance.ClientMove(socket, x, y);
+            string[] dataParts = dataString.Split(',');
+            if (dataParts.Length >= 3)
+            {
+                int socket = Convert.ToInt32(dataParts[0]);
+                int x = Convert.ToInt32(dataParts[1]);
+                int y = Convert.ToInt32(dataParts[2]);
+                if (socket != Manager.my_socket)
+                    ClientManager.instance.ClientMove(socket, x, y);
+            }
+            else
+            {
+                Debug.LogError("Invalid data format received from the server: " + dataString);
+            }
         }
-        else
+        catch(FormatException ex)
         {
-            Debug.LogError("Invalid data format received from the server: " + dataString);
+            Debug.LogError(ex.Message+" : " + dataString);
+
         }
     }
     void GetNewbi()

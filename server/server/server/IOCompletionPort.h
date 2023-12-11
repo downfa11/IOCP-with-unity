@@ -5,7 +5,6 @@ class IOCompletionPort {
 
 public:
 
-
 	vector<ClientInfo> ClientInfos;
 	vector<pair<int, string>> chatlog;
 	SOCKET ListenSocket = INVALID_SOCKET;
@@ -13,12 +12,20 @@ public:
 
 	vector<thread> IOWorkerThreads;
 	thread mAccepterThread;
+	thread mProcessThread;
 
 	HANDLE IOCPHandle = INVALID_HANDLE_VALUE; // CompletionPort 객체 handle
 
 	bool isWorkerRun = true; // 작업 쓰레드 동작 flag
 	bool isAccepterRun = true; // 접속 쓰레드 동작 flag
+	bool IsRunProcessThread = false;
+
 	char SocketBuf[1024] = { 0, }; //socket buffer
+
+	deque<PacketData> PacketDataQueue;
+	queue<OverlappedEx*> SendDataQueue;
+	mutex mLock;
+	mutex sendLock;
 
 	IOCompletionPort(void) {}
 
@@ -65,6 +72,11 @@ public:
 	}
 
 	bool StartServer(const int maxCount) {
+
+		IsRunProcessThread = true;
+		mProcessThread = thread([this]() { ProcessPacket(); });
+
+
 		CreateClient(maxCount);
 		cout << "start" << endl;
 		IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, MAX_WORKERTHREAD);
@@ -86,6 +98,14 @@ public:
 	}
 
 	void DestroyThread() {
+
+		IsRunProcessThread = false;
+
+		if (mProcessThread.joinable())
+		{
+			mProcessThread.join();
+		}
+
 		isWorkerRun = false;
 		CloseHandle(IOCPHandle);
 		for (auto& th : IOWorkerThreads) {
@@ -149,7 +169,7 @@ private:
 		DWORD dwRecvNumBytes = 0;
 
 		clientinfo->RecvOverlappedEx.m_wsaBuf.len = MAX_SOCKBUF;
-		clientinfo->RecvOverlappedEx.m_wsaBuf.buf = clientinfo->RecvOverlappedEx.m_Buf;
+		clientinfo->RecvOverlappedEx.m_wsaBuf.buf = clientinfo->RecvBuf;
 		clientinfo->RecvOverlappedEx.m_Operation = IOOperation::RECV;
 
 		//socket_error면 client socket이 끊어진걸로 처리한다
@@ -164,29 +184,66 @@ private:
 
 	}
 
-	bool Send(ClientInfo* clientinfo,const void* message, int len, int number) {
+	bool Send(ClientInfo* clientinfo, const void* message, int len, int number) {
+
+		auto sendOverlappedEx = new OverlappedEx;
+		ZeroMemory(sendOverlappedEx, sizeof(OverlappedEx));
+		sendOverlappedEx->m_wsaBuf.len = sizeof(int) * 2 + len;
+		sendOverlappedEx->m_cliSocket = clientinfo->cliSocket;
+		sendOverlappedEx->m_wsaBuf.buf = new char[sendOverlappedEx->m_wsaBuf.len];
+
+		char* bufferPtr = sendOverlappedEx->m_wsaBuf.buf;
+
+		memcpy(bufferPtr, &len, sizeof(int));
+		bufferPtr += sizeof(int);
+
+		memcpy(bufferPtr, &number, sizeof(int));
+		bufferPtr += sizeof(int);
+
+		memcpy(bufferPtr, message, len);
+
+		sendOverlappedEx->m_Operation = IOOperation::SEND;
+
 		DWORD dwRecvNumBytes = 0;
 
-		memcpy(clientinfo->SendOverlappedEx.m_Buf, &len, sizeof(int));
-		memcpy(clientinfo->SendOverlappedEx.m_Buf + sizeof(int), &number, sizeof(int));
-		memcpy(clientinfo->SendOverlappedEx.m_Buf + 2 * sizeof(int), message, len);
+		lock_guard<mutex> guard(sendLock);
 
+		//if(number!= H_COORDINATE)
+//cout << clientinfo->cliSocket << " : [" << number << "]" << endl;
 
-		clientinfo->SendOverlappedEx.m_wsaBuf.len = len + 2 * sizeof(int);
-		clientinfo->SendOverlappedEx.m_wsaBuf.buf = clientinfo->SendOverlappedEx.m_Buf;
-		clientinfo->SendOverlappedEx.m_Operation = IOOperation::SEND;
-		//cout << number << "(size:" <<len<< ") : " << static_cast<const char*>(message) << endl;
+		SendDataQueue.push(sendOverlappedEx);
+		if (SendDataQueue.size() == 1)
+		{
+			SendIO();
+		}
 
+		return true;
+	}
 
-		int ret = WSASend(clientinfo->cliSocket, &(clientinfo->SendOverlappedEx.m_wsaBuf), 1, &dwRecvNumBytes, 0,
-			(LPWSAOVERLAPPED) & (clientinfo->SendOverlappedEx), NULL);
+	void SendCompleted(ClientInfo* clientinfo, const int dataSize) {
+		lock_guard<mutex> gaurd(sendLock);
+		delete[] SendDataQueue.front()->m_wsaBuf.buf;
+		delete SendDataQueue.front();
+
+		SendDataQueue.pop();
+		if (!SendDataQueue.empty())
+		{
+			SendIO();
+		}
+	}
+
+	bool SendIO() {
+
+		auto sendOverlappedEx = SendDataQueue.front();
+		DWORD dwRecvNumBytes = 0;
+		int ret = WSASend(sendOverlappedEx->m_cliSocket, &sendOverlappedEx->m_wsaBuf, 1, &dwRecvNumBytes, 0,
+			(LPWSAOVERLAPPED)sendOverlappedEx, NULL);
 
 		if (ret == SOCKET_ERROR && (WSAGetLastError() != ERROR_IO_PENDING)) {
-			cout << "WSASend() fail : " << WSAGetLastError();
+			cout << "WSASend() fail: " << WSAGetLastError() << endl;
 			return false;
 		}
 		return true;
-
 	}
 	// Overlapped IO 작업에 대한 완료 통보를 받아서 그 처리를 하는 함수
 	void WorkerThread() {
@@ -224,18 +281,18 @@ private:
 			OverlappedEx* overlappedEx = (OverlappedEx*)lpOverlapped;
 			if (overlappedEx->m_Operation == IOOperation::RECV) // recv 작업 결과 뒷처리
 			{
-				overlappedEx->m_Buf[dwIoSize] = '\0';
+				clientinfo->RecvBuf[dwIoSize] = '\0';
 
 				int packetNumber;
-				memcpy(&packetNumber, overlappedEx->m_Buf +sizeof(int), sizeof(int));
+				memcpy(&packetNumber, clientinfo->RecvBuf + sizeof(int), sizeof(int));
 
 				int messageLength = dwIoSize - sizeof(int);
-				char* messageData = overlappedEx->m_Buf + 2 * sizeof(int);
+				char* messageData = clientinfo->RecvBuf + 2 * sizeof(int);
 
 				switch (packetNumber) {
 
 				case H_ECHO:
-					cout << "Client " << (int)clientinfo->cliSocket << " (bytes : " << messageLength <<") : " << messageData << endl;
+					cout << "Client " << (int)clientinfo->cliSocket << " (bytes : " << messageLength << ") : " << messageData << endl;
 					chatlog.push_back(make_pair((int)clientinfo->cliSocket, messageData));
 					for (auto& inst : ClientInfos) {
 						if (inst.cliSocket != INVALID_SOCKET)
@@ -249,9 +306,9 @@ private:
 
 					break;
 
-	
+
 				default:
-					cout << "패킷 번호 : " <<packetNumber << ", 길이 : "<< messageLength<< ", 받은 내용 : " << overlappedEx->m_Buf << endl;
+					cout << "패킷 번호 : " << packetNumber << ", 길이 : " << messageLength << ", 받은 내용 : " << clientinfo->RecvBuf << endl;
 					break;
 				}
 
@@ -261,6 +318,7 @@ private:
 				BindRecv(clientinfo);
 			}
 			else if (overlappedEx->m_Operation == IOOperation::SEND) {
+				SendCompleted(clientinfo, dwIoSize);
 				//cout << "[send] "<< ":: ClientID:" + (int)clientinfo->cliSocket << ", bytes : " << dwIoSize << ", message : " << overlappedEx->m_Buf << endl;
 			}
 			else cout << "[예외] : " << (int)clientinfo->cliSocket << "에서 발생함." << endl;
@@ -294,10 +352,11 @@ private:
 			char clientIP[32] = { 0, };
 			int socket = (int)clientinfo->cliSocket;
 			inet_ntop(AF_INET, &(clientAddr.sin_addr), clientIP, 32 - 1);
-			cout << "client connect." << endl;
-			cout << "IP : " << clientIP << " socket : " << socket << endl;
+			cout << socket << " client connect." << endl;
+			//cout << "IP : " << clientIP << " socket : " << socket << endl;
 			ClientCnt++;
 			Send(clientinfo, &socket, sizeof(int), H_CONNECTION);
+
 
 			for (auto& inst : ClientInfos) {
 				if (inst.cliSocket != INVALID_SOCKET)
@@ -309,10 +368,11 @@ private:
 
 			for (auto& inst : ClientInfos) {
 				if (inst.cliSocket != INVALID_SOCKET) {
-					int clisocket = (int)clientinfo->cliSocket;
-					Send(&inst, &clisocket, sizeof(int), H_GETNEWBI);
+					Send(&inst, &socket, sizeof(int), H_GETNEWBI);
 				}
 			}
+		
+
 		}
 	}
 
@@ -340,11 +400,43 @@ private:
 	void syncPosition(ClientInfo& client, char* messageData, int messageLength) {
 
 		string socketString = to_string(client.cliSocket);
-		string fullMessage = socketString +"," + messageData;
+		string fullMessage = socketString + "," + messageData;
 
 		for (auto& inst : ClientInfos) {
 			if (inst.cliSocket != INVALID_SOCKET)
 				Send(&inst, fullMessage.c_str(), fullMessage.size(), H_COORDINATE);
 		}
 	}
-};
+
+	void ProcessPacket()
+	{
+		while (IsRunProcessThread)
+		{
+			auto packetData = DequePacketData();
+			if (packetData.DataSize != 0)
+				Send(packetData.clientinfo, packetData.pPacketData, packetData.DataSize, packetData.SessionNumber);
+
+			else
+				this_thread::sleep_for(chrono::milliseconds(1));
+		}
+	}
+
+	PacketData DequePacketData()
+	{
+		PacketData packetData;
+
+		lock_guard<std::mutex> guard(mLock);
+		if (PacketDataQueue.empty())
+		{
+			return PacketData();
+		}
+
+		packetData.Set(PacketDataQueue.front());
+
+		PacketDataQueue.front().Release();
+		PacketDataQueue.pop_front();
+
+		return packetData;
+	}
+
+}; 

@@ -19,10 +19,11 @@ public class ClientManager : MonoBehaviour
     public static ClientManager instance;
     static public LinkedList<Client> client_list = new LinkedList<Client>();
     static public Client my_client;
-
+    int Count = 0;
     float packet_time;
 
     public Text chatBox;
+    public Text curClient;
     public GameObject chatlist;
 
     public const string IP = "127.0.0.1";
@@ -43,6 +44,8 @@ public class ClientManager : MonoBehaviour
     }
     void Update()
     {
+        Count = client_list.Count;
+        curClient.text = "Clients : "+Count.ToString();
         if (Manager.connection_state == Manager.ConnectionState.ConnectSuccess)
             if (my_client != null)
                 my_client.SpeedDecrease();
@@ -72,6 +75,9 @@ public class ClientManager : MonoBehaviour
         {
             if (item.socket == socket)
             {
+                if (item.x == x && item.y == y)
+                    return;
+
                 item.x = x;
                 item.y = y;
                 //item.transform.position = new Vector3(item.x, item.y, 0);
