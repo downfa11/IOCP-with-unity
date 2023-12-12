@@ -1,14 +1,16 @@
 # IOCP-with-unity
 
-IOCP Socket Network Server with Unity3d **[**Assignment term project**]**
+IOCP Socket Network Server with Unity3d
 
 - Client was implemented in unity3d(C#)
 
-[careful] No Timeout, Graceful shutdown
+[careful] No Timeout, Graceful shutdown  
+</br></br>
 
+<img width="550" alt="접속테스트" src="https://github.com/downfa11/IOCP-with-unity/assets/124482256/be709de9-f2ff-4ee9-bf80-074df5250151">  
 
-컴퓨터 네트워크 과제로 제출한 IOCP 서버와 Unity 클라이언트 프로젝트
-IP 127.0.0.1, Port 8080
+</br>
+IOCP 서버와 Unity 클라이언트 프로젝트 (IP 127.0.0.1, Port 8080)</br></br>
 
 dummy는 원하는 수의 클라이언트가 서버에 접속해서 초당 랜덤 좌표로 이동합니다. (x,y : -1,1)
 

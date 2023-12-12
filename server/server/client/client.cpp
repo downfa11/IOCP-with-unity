@@ -4,7 +4,7 @@
 #include <string>
 #include<thread>
 #include <random>
-#define N 1000
+#define N 300
 #pragma comment(lib, "ws2_32")
 
 #define H_ECHO 8282
@@ -133,7 +133,7 @@ int main() {
     for (int i = 0; i < N; ++i)
     {
         clientThreads[i] = std::thread(ClientThread);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     for (int i = 0; i < N; ++i)
         clientThreads[i].join();
