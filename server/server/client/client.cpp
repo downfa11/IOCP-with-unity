@@ -4,9 +4,10 @@
 #include <string>
 #include<thread>
 #include <random>
-#define N 300
 #pragma comment(lib, "ws2_32")
 
+#define N 100
+#define IntervalTime 50
 #define H_ECHO 8282
 #define H_COORDINATE 3142
 
@@ -133,7 +134,7 @@ int main() {
     for (int i = 0; i < N; ++i)
     {
         clientThreads[i] = std::thread(ClientThread);
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(IntervalTime));
     }
     for (int i = 0; i < N; ++i)
         clientThreads[i].join();

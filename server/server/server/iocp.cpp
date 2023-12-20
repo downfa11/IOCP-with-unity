@@ -1,9 +1,7 @@
 #include "IOCompletionPort.h"
 #include<list>
 
-
 int main() {
-
     IOCompletionPort ioCompletionPort;
 
     ioCompletionPort.InitSocket();

@@ -222,14 +222,16 @@ private:
 
 	void SendCompleted(ClientInfo* clientinfo, const int dataSize) {
 		lock_guard<mutex> gaurd(sendLock);
-		delete[] SendDataQueue.front()->m_wsaBuf.buf;
-		delete SendDataQueue.front();
-
-		SendDataQueue.pop();
-		if (!SendDataQueue.empty())
-		{
-			SendIO();
+		cout << "send completed";
+		if (!SendDataQueue.empty() && SendDataQueue.front()->m_wsaBuf.len == dataSize) {
+			delete[] SendDataQueue.front()->m_wsaBuf.buf;
+			delete SendDataQueue.front();
+			SendDataQueue.pop();
+			cout << " delete!" << endl;
+			cout << "SendDataQueue size : " << SendDataQueue.size() << endl;
 		}
+		if (!SendDataQueue.empty())	SendIO();
+		
 	}
 
 	bool SendIO() {
@@ -273,6 +275,7 @@ private:
 				continue;
 
 			if (!success || (dwIoSize == 0 && success)) {
+				cout << endl;
 				cout << "socket " << (int)clientinfo->cliSocket << " disconnected." << endl;
 				CloseSocket(clientinfo);
 				continue;
@@ -352,6 +355,7 @@ private:
 			char clientIP[32] = { 0, };
 			int socket = (int)clientinfo->cliSocket;
 			inet_ntop(AF_INET, &(clientAddr.sin_addr), clientIP, 32 - 1);
+			cout << endl;
 			cout << socket << " client connect." << endl;
 			//cout << "IP : " << clientIP << " socket : " << socket << endl;
 			ClientCnt++;

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -45,7 +46,17 @@ public class ClientManager : MonoBehaviour
     void Update()
     {
         Count = client_list.Count;
-        curClient.text = "Clients : "+Count.ToString();
+        if (Manager.connection_state == Manager.ConnectionState.Disconnect)
+        { curClient.text = "Disconnected.";
+
+            if (Input.GetMouseButtonDown(0))
+                Manager.ConnectServer(IP, Port);
+
+        }
+        else curClient.text = "Clients : " + Count.ToString();
+
+
+
         if (Manager.connection_state == Manager.ConnectionState.ConnectSuccess)
             if (my_client != null)
                 my_client.SpeedDecrease();
